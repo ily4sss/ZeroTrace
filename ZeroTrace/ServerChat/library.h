@@ -9,17 +9,18 @@
 #include <string.h>
 #include <poll.h>
 #include <vector>
-
+void Bind_Socket();
 struct s_message
 {
     std::string content;
     std::string recv;
+    std::string sender;
 };
 enum class ClientState
 {
     USERNAME,
     RECEIVER,
-    MESSAGE
+    CHAT
 };
 struct client
 {

@@ -102,154 +102,165 @@ void Server::Connection()
                                 continue;
                             }
                             input.resize(bytes_recv);
+                            size_t pos;
                             for (size_t j = 0; j < clients.size(); j++)
                             {
                                 if (clients[j].fd != client_fd)
                                     continue;
-                                if (clients[j].state == ClientState::USERNAME)
+                                clients[j].buffer += input;
+                                while (clients[j].buffer.find('\n') != std::string::npos)
                                 {
-                                    clients[j].username = input;
-                                    bool found  = false;
-                                    for (size_t k = 0; k < known_users.size(); k++)
+                                    pos = clients[j].buffer.find('\n');
+                                    std::string line = clients[j].buffer.substr(0, pos);
+                                    clients[j].buffer.erase(0 , pos + 1);
+                                    if (clients[j].fd != client_fd)
+                                    continue;
+                                    if (clients[j].state == ClientState::USERNAME)
                                     {
-                                        if (known_users[k] == input)
+                                        clients[j].username = line;
+                                        bool found  = false;
+                                        for (size_t k = 0; k < known_users.size(); k++)
                                         {
-                                            found = true;
-                                            break;
+                                            if (known_users[k] == line)
+                                            {
+                                                found = true;
+                                                break;
+                                            }
                                         }
-                                    }
-                                    if (found)
-                                    {
-                                        clients[j].known = true;
-                                        std::cout<<"------------------------------------\n";
-                                        std::cout<<"Welcome back "<<input<<'\n';
-                                        std::cout<<"------------------------------------\n";
-                                    }
-                                    else
-                                    {
-                                        clients[j].known = false;
-                                        known_users.push_back(input);
-                                        std::cout<<"------------------------------------\n";
-                                        std::cout << "New user: " << input << '\n';
-                                        std::cout<<"------------------------------------\n";
-
-                                    }
-                                    clients[j].state = ClientState::RECEIVER;
-
-                                    std::string prompt = "User to chat with: ";
-                                    Send(client_fd, prompt);
-                                }
-                                else if (clients[j].state == ClientState::RECEIVER)
-                                {
-                                    bool user_exist = false;
-                                    bool user_online = false;
-
-                                    for (size_t k = 0; k < known_users.size(); k++)
-                                    {
-                                        if (known_users[k] == input)
+                                        if (found)
                                         {
-                                            user_exist = true;
-                                            break;
+                                            clients[j].known = true;
+                                            std::cout<<"------------------------------------\n";
+                                            std::cout<<"Welcome back "<<line<<'\n';
+                                            std::cout<<"------------------------------------\n";
                                         }
-                                    }
-
-                                    if (!user_exist)
-                                    {
-                                        std::string prompt =
-                                            "User doesn't exist...\n"
-                                            "User to chat with: ";
-
-                                        Send(client_fd, prompt);
-
-                                        break;
-                                    }
-
-                                    for (size_t k = 0; k < clients.size(); k++)
-                                    {
-                                        if (clients[k].username == input)
+                                        else
                                         {
-                                            user_online = true;
-                                            break;
+                                            clients[j].known = false;
+                                            known_users.push_back(line);
+                                            std::cout<<"------------------------------------\n";
+                                            std::cout << "New user: " << line << '\n';
+                                            std::cout<<"------------------------------------\n";
+
                                         }
-                                    }
-
-                                    clients[j].receiver = input;
-                                    clients[j].state = ClientState::CHAT;
-
-                                    std::string state;
-
-                                    if (user_online)
-                                        state = "Online";
-                                    else
-                                        state = "Offline";
-
-                                    std::string head ="\nChat with " + input +" [" + state + "]"
-                                        " (/exit to leave the session)\n";
-
-                                    Send(client_fd, head);
-
-                                    for (size_t h = 0; h < history.size(); h++)
-                                    {
-                                        bool sent_by_me =
-                                            history[h].sender == clients[j].username &&
-                                            history[h].recv == clients[j].receiver;
-
-                                        bool sent_to_me =
-                                            history[h].sender == clients[j].receiver &&
-                                            history[h].recv == clients[j].username;
-
-                                        if (sent_by_me || sent_to_me)
-                                        {
-                                            std::string output =
-                                                "[" + history[h].sender + "]: " +
-                                                history[h].content + "\n";
-
-                                            Send(client_fd, output);
-                                        }
-                                    }
-                                }
-                                else if (clients[j].state == ClientState::CHAT)
-                                {
-                                    if (input == "/exit")
-                                    {
-                                        clients[j].receiver = "";
                                         clients[j].state = ClientState::RECEIVER;
 
                                         std::string prompt = "User to chat with: ";
-
                                         Send(client_fd, prompt);
-
-                                        break;
                                     }
-
-                                    s_message message;
-
-                                    message.sender = clients[j].username;
-                                    message.recv = clients[j].receiver;
-                                    message.content = input;
-
-                                    history.push_back(message);
-
-                                    std::cout<< message.sender<< " -> "
-                                        << message.recv<< ": "<< message.content<< '\n';
-
-                                    for (size_t k = 0; k < clients.size(); k++)
+                                    else if (clients[j].state == ClientState::RECEIVER)
                                     {
-                                        if (clients[k].username == clients[j].receiver
-                                            && clients[k].state == ClientState::CHAT
-                                            && clients[k].receiver == clients[j].username)
-                                        {
-                                            std::string output =
-                                                "\n[" + clients[j].username + "]: "
-                                                + message.content + "\n";
+                                        bool user_exist = false;
+                                        bool user_online = false;
 
-                                            Send(clients[k].fd, output);
+                                        for (size_t k = 0; k < known_users.size(); k++)
+                                        {
+                                            if (known_users[k] == line)
+                                            {
+                                                user_exist = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if (!user_exist)
+                                        {
+                                            std::string prompt =
+                                                "User doesn't exist...\n"
+                                                "User to chat with: ";
+
+                                            Send(client_fd, prompt);
 
                                             break;
                                         }
-                                    }
-                                }
 
+                                        for (size_t k = 0; k < clients.size(); k++)
+                                        {
+                                            if (clients[k].username == line)
+                                            {
+                                                user_online = true;
+                                                break;
+                                            }
+                                        }
+
+                                        clients[j].receiver = line;
+                                        clients[j].state = ClientState::CHAT;
+
+                                        std::string state;
+
+                                        if (user_online)
+                                            state = "Online";
+                                        else
+                                            state = "Offline";
+
+                                        std::string head ="\nChat with " + line +" [" + state + "]"
+                                            " (/exit to leave the session)\n";
+
+                                        Send(client_fd, head);
+
+                                        for (size_t h = 0; h < history.size(); h++)
+                                        {
+                                            bool sent_by_me =
+                                                history[h].sender == clients[j].username &&
+                                                history[h].recv == clients[j].receiver;
+
+                                            bool sent_to_me =
+                                                history[h].sender == clients[j].receiver &&
+                                                history[h].recv == clients[j].username;
+
+                                            if (sent_by_me || sent_to_me)
+                                            {
+                                                std::string output =
+                                                    "[" + history[h].sender + "]: " +
+                                                    history[h].content + "\n";
+
+                                                Send(client_fd, output);
+                                            }
+                                        }
+                                    }
+                                    else if (clients[j].state == ClientState::CHAT)
+                                    {
+                                        if (line == "/exit")
+                                        {
+                                            clients[j].receiver = "";
+                                            clients[j].state = ClientState::RECEIVER;
+
+                                            std::string prompt = "User to chat with: ";
+
+                                            Send(client_fd, prompt);
+
+                                            break;
+                                        }
+
+                                        s_message message;
+
+                                        message.sender = clients[j].username;
+                                        message.recv = clients[j].receiver;
+                                        message.content = line;
+
+                                        history.push_back(message);
+
+                                        std::cout<< message.sender<< " -> "
+                                            << message.recv<< ": "<< message.content<< '\n';
+
+                                        for (size_t k = 0; k < clients.size(); k++)
+                                        {
+                                            if (clients[k].username == clients[j].receiver
+                                                && clients[k].state == ClientState::CHAT
+                                                && clients[k].receiver == clients[j].username)
+                                            {
+                                                std::string output =
+                                                    "\n[" + clients[j].username + "]: "
+                                                    + message.content + "\n";
+
+                                                Send(clients[k].fd, output);
+
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                }
+                                
                                 break;
                             }
                         }

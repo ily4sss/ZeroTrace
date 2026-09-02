@@ -1,6 +1,6 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
-#include "library.h"
+#include "library.hpp"
 class Server
 {
 private:
